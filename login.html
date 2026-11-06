@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign In — EduFinance</title>
+<meta name="description" content="Sign in to EduFinance — your smart student expense tracker.">
+<link rel="stylesheet" href="css/auth.css">
+</head>
+<body>
+
+<div class="auth-bg"><div class="blob-accent"></div></div>
+<button class="theme-btn" id="themeBtn">🌙 Dark</button>
+
+<div class="auth-page">
+  <div class="auth-split">
+
+    <!-- Hero Panel -->
+    <div class="auth-hero">
+      <div>
+        <div class="hero-brand">🎓 EduFinance</div>
+        <p class="hero-tagline">The smart way to manage your student finances — track expenses, fees, savings goals, and scholarships in one place.</p>
+        <ul class="hero-features">
+          <li><span class="feat-icon">💸</span> Expense tracking with smart categories</li>
+          <li><span class="feat-icon">🏫</span> College fee management &amp; payment tracking</li>
+          <li><span class="feat-icon">🏦</span> Savings goals with progress rings</li>
+          <li><span class="feat-icon">🎓</span> Scholarship application tracker</li>
+          <li><span class="feat-icon">📊</span> Detailed financial reports &amp; analytics</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Auth Card -->
+    <div class="auth-card">
+      <a href="index.html" class="auth-logo">
+        <div class="auth-logo-icon">🎓</div>
+        <span class="auth-logo-text">EduFinance</span>
+      </a>
+
+      <h1 class="auth-title">Welcome back</h1>
+      <p class="auth-sub">Sign in to manage your student finances.</p>
+
+      <div id="alertBox"></div>
+
+      <!-- Google Sign-In -->
+      <button class="btn-google" id="googleBtn" type="button">
+        <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+          <path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.7 33.9 29.8 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 5.1 29.6 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21c10.5 0 20-7.6 20-21 0-1.4-.1-2.7-.5-4z"/>
+          <path fill="#34A853" d="M6.3 14.7l7 5.1C15 16.1 19.1 13 24 13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 5.1 29.6 3 24 3c-7.9 0-14.7 4.6-17.7 11.7z"/>
+          <path fill="#FBBC05" d="M24 45c5.5 0 10.5-1.9 14.4-5l-6.7-5.4C29.8 36.3 27 37 24 37c-5.7 0-10.6-3.1-11.8-7.5l-7 5.4C8.1 41 15.5 45 24 45z"/>
+          <path fill="#EA4335" d="M44.5 20H24v8.5h11.8c-.6 2.3-2 4.4-3.9 5.9l6.7 5.4C42.6 36.1 45 30.6 45 24c0-1.4-.1-2.7-.5-4z"/>
+        </svg>
+        Continue with Google
+      </button>
+
+      <div class="auth-divider">or sign in with email</div>
+
+      <!-- Login Form -->
+      <form id="loginForm" novalidate>
+        <div class="form-group">
+          <label class="form-label" for="loginEmail">Email Address</label>
+          <div class="input-wrap">
+            <span class="input-icon">✉️</span>
+            <input id="loginEmail" type="email" class="form-input has-icon"
+              placeholder="you@gmail.com" autocomplete="email" required>
+          </div>
+          <div class="field-error" id="loginEmailErr"></div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="loginPassword">Password</label>
+          <div class="input-wrap">
+            <span class="input-icon">🔒</span>
+            <input id="loginPassword" type="password" class="form-input has-icon has-toggle"
+              placeholder="Your password" autocomplete="current-password" required>
+            <button type="button" class="pw-toggle" id="loginPwToggle" title="Show password">👁️</button>
+          </div>
+          <div class="field-error" id="loginPwErr"></div>
+        </div>
+
+        <div class="auth-links">
+          <label class="remember-row">
+            <input type="checkbox" id="rememberMe"> Remember me
+          </label>
+          <a href="forgot-password.html">Forgot password?</a>
+        </div>
+
+        <button type="submit" class="btn-primary" id="loginBtn">Sign In</button>
+      </form>
+
+      <div class="auth-footer-link">
+        Don't have an account? <a href="register.html">Create one free</a>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="js/auth-shared.js"></script>
+<script>
+  // Redirect if already logged in
+  redirectIfLoggedIn();
+
+  // Setup UI
+  setupPasswordToggle("loginPassword", "loginPwToggle");
+
+  // Google button
+  document.getElementById("googleBtn").addEventListener("click", () => {
+    const gcid = ""; // Set in .env — GOOGLE_CLIENT_ID
+    if (!gcid) {
+      showAlert("alertBox",
+        "Google login is not configured. Please contact the administrator or use email/password.",
+        "info");
+      return;
+    }
+    location.href = API + "/auth/google";
+  });
+
+  // Check for redirect reason in URL
+  const params = new URLSearchParams(location.search);
+  const reason = params.get("reason");
+  const msgMap = {
+    expired:   ["Your session has expired. Please sign in again.", "warning"],
+    verified:  ["Your email is verified! You can now sign in.", "success"],
+    reset:     ["Password reset successful. Sign in with your new password.", "success"],
+    logout:    ["You have been signed out.", "info"],
+  };
+  if (reason && msgMap[reason]) {
+    showAlert("alertBox", ...msgMap[reason]);
+  }
+
+  // Login form submit
+  document.getElementById("loginForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    clearAlert("alertBox");
+
+    const emailEl = document.getElementById("loginEmail");
+    const pwEl    = document.getElementById("loginPassword");
+    const emailErrEl = document.getElementById("loginEmailErr");
+    const pwErrEl    = document.getElementById("loginPwErr");
+
+    clearFieldError(emailEl, emailErrEl);
+    clearFieldError(pwEl, pwErrEl);
+
+    const email    = emailEl.value.trim();
+    const password = pwEl.value;
+
+    // Client-side validation
+    if (!email) { showFieldError(emailEl, emailErrEl, "Email is required."); emailEl.focus(); return; }
+    if (!isValidEmail(email)) { showFieldError(emailEl, emailErrEl, "Please enter a valid email address."); emailEl.focus(); return; }
+    if (!password) { showFieldError(pwEl, pwErrEl, "Password is required."); pwEl.focus(); return; }
+
+    const btn = document.getElementById("loginBtn");
+    const origText = btn.textContent;
+    setButtonLoading(btn, true, origText);
+
+    try {
+      await apiPost("/auth/login", { email, password });
+      location.replace("dashboard.html");
+    } catch (err) {
+      setButtonLoading(btn, false, origText);
+      const errData = err.message || "";
+      if (errData.includes("verify") || errData.includes("verification")) {
+        showAlert("alertBox",
+          `${errData} <br><br>
+           <a href="verify-email.html?email=${encodeURIComponent(email)}" style="font-weight:700;color:var(--primary);">
+             Resend verification email →
+           </a>`,
+          "warning");
+      } else {
+        showAlert("alertBox", errData, "error");
+      }
+    }
+  });
+</script>
+</body>
+</html>

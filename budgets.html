@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Budgets — EduFinance</title>
+<link rel="stylesheet" href="css/app.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+.budget-groups{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;}
+.budget-group-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;}
+.grp-header{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+.grp-icon{font-size:1.4rem;}
+.grp-name{font-weight:700;font-size:0.95rem;}
+.grp-spent{font-size:0.8rem;color:var(--muted);}
+.grp-input-row{display:flex;align-items:center;gap:8px;margin-top:10px;}
+.rupee-prefix{font-weight:700;color:var(--muted);}
+</style>
+</head>
+<body>
+<div id="appNav"></div>
+<header class="topbar">
+  <a class="topbar-brand" href="dashboard.html"><div class="topbar-logo">🎓</div><span class="topbar-title">EduFinance</span></a>
+  <div class="topbar-right">
+    <span class="topbar-page-title">Budgets</span>
+    <button class="theme-toggle-btn">🌙</button>
+    <button id="navOpenBtn" class="nav-open-btn">☰</button>
+  </div>
+</header>
+
+<main class="page-wrap">
+  <div class="page-header">
+    <div class="page-header-left"><h1>🎯 Budgets</h1><p>Set and track your monthly spending limits.</p></div>
+    <button class="btn btn-primary" id="saveBudgetsBtn">💾 Save All Budgets</button>
+  </div>
+
+  <!-- Monthly Budget -->
+  <div class="card mb-24">
+    <div class="section-title">📅 Monthly Budget</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
+      <div>
+        <div class="form-group mb-16">
+          <label class="form-label" for="monthlyBudgetInput">Total Monthly Budget (₹)</label>
+          <input id="monthlyBudgetInput" type="number" class="form-control" placeholder="e.g. 10000" min="0" step="100">
+        </div>
+        <div class="d-flex gap-8">
+          <span class="text-muted" style="font-size:0.88rem;">Spent this month: <strong id="monthlySpent">₹0</strong></span>
+        </div>
+        <div class="progress-track" style="margin:10px 0;">
+          <div class="progress-fill" id="monthlyProgressBar" style="width:0%;"></div>
+        </div>
+        <div id="monthlyStatus" class="text-muted" style="font-size:0.82rem;"></div>
+      </div>
+      <div class="chart-wrap" style="height:160px;"><canvas id="monthlyChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Group Budgets -->
+  <div class="section-title mb-16">📊 Category Group Budgets</div>
+  <div class="budget-groups" id="budgetGroups">
+    <div class="loading-state"><div class="spinner"></div><span>Loading…</span></div>
+  </div>
+
+  <!-- Summary -->
+  <div class="card mt-24">
+    <div class="section-title">📈 Budget vs Spending (This Month)</div>
+    <div class="chart-wrap" style="height:300px;"><canvas id="budgetChart"></canvas></div>
+  </div>
+
+  <!-- Tips -->
+  <div class="section-title mt-24 mb-16">💡 Budgeting Tips for Students</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;">
+    <div class="card card-sm"><div style="font-size:1.5rem;margin-bottom:8px;">🍽</div><div class="fw-semi mb-8">50-30-20 Rule</div><div class="text-muted" style="font-size:0.85rem;">50% needs, 30% wants, 20% savings. Adapt it to your student life.</div></div>
+    <div class="card card-sm"><div style="font-size:1.5rem;margin-bottom:8px;">📱</div><div class="fw-semi mb-8">Track Daily</div><div class="text-muted" style="font-size:0.85rem;">Log expenses as soon as you spend to avoid forgetting small purchases.</div></div>
+    <div class="card card-sm"><div style="font-size:1.5rem;margin-bottom:8px;">🛒</div><div class="fw-semi mb-8">Plan Groceries</div><div class="text-muted" style="font-size:0.85rem;">Buy in bulk and cook meals — you can save 40-60% over eating out daily.</div></div>
+    <div class="card card-sm"><div style="font-size:1.5rem;margin-bottom:8px;">🎯</div><div class="fw-semi mb-8">Emergency Fund</div><div class="text-muted" style="font-size:0.85rem;">Keep at least ₹2,000-₹5,000 set aside for unexpected expenses.</div></div>
+  </div>
+</main>
+
+<div id="confirmModal" class="modal-overlay" role="dialog" aria-modal="true">
+  <div class="modal"><div class="modal-body" style="text-align:center;padding:32px 24px;"><div id="confirmTitle" style="font-weight:700;margin-bottom:8px;font-size:1.1rem;"></div><div id="confirmBody" style="color:var(--muted);"></div></div>
+  <div class="modal-footer"><button id="confirmNo" class="btn btn-secondary">Cancel</button><button id="confirmYes" class="btn btn-danger">Confirm</button></div></div>
+</div>
+
+<script src="js/common.js"></script>
+<script src="js/nav.js"></script>
+<script>
+initTheme();
+const GROUPS=[{name:'Food',icon:'🍽'},{name:'Shopping',icon:'🛍'},{name:'College',icon:'🎓'},{name:'Transport',icon:'🚌'},{name:'Living',icon:'🏠'},{name:'Bills',icon:'📱'},{name:'Fun',icon:'🎬'},{name:'Health',icon:'💊'},{name:'Other',icon:'📦'}];
+let monthlyBudget=0, groupBudgets={}, monthExpenses=[], budgetChartI=null, monthlyChartI=null;
+
+async function init(){
+  const user=await requireAuth(); buildNav('budgets',user);
+  const [bud, grpBud, exps] = await Promise.all([
+    API_CLIENT.get('/budget'),
+    API_CLIENT.get('/group-budgets'),
+    API_CLIENT.get('/expenses?month='+new Date().toISOString().slice(0,7))
+  ]);
+  monthlyBudget=bud.amount||0;
+  groupBudgets=grpBud||{};
+  monthExpenses=exps||[];
+  document.getElementById('monthlyBudgetInput').value=monthlyBudget||'';
+  renderGroupCards();
+  updateMonthlyProgress();
+  renderBudgetChart();
+}
+
+function getMonthSpent(group){
+  if(group) return monthExpenses.filter(e=>e.group===group).reduce((s,e)=>s+e.amount,0);
+  return monthExpenses.reduce((s,e)=>s+e.amount,0);
+}
+
+function updateMonthlyProgress(){
+  const budget=parseFloat(document.getElementById('monthlyBudgetInput').value)||0;
+  const spent=getMonthSpent();
+  const pct=budget>0?Math.min((spent/budget)*100,100):0;
+  document.getElementById('monthlySpent').textContent=money(spent);
+  const bar=document.getElementById('monthlyProgressBar');
+  bar.style.width=pct+'%';
+  bar.className='progress-fill '+(pct>=100?'danger':pct>=80?'warning':'success');
+  const left=budget-spent;
+  document.getElementById('monthlyStatus').textContent=budget?`${money(Math.abs(left))} ${left>=0?'remaining':'over budget'} · ${pct.toFixed(1)}% used`:'Set a monthly budget above.';
+
+  // Donut chart
+  const ctx=document.getElementById('monthlyChart').getContext('2d');
+  if(monthlyChartI) monthlyChartI.destroy();
+  if(!budget){return;}
+  monthlyChartI=new Chart(ctx,{type:'doughnut',data:{labels:['Spent','Remaining'],datasets:[{data:[Math.min(spent,budget),Math.max(budget-spent,0)],backgroundColor:['#ef4444','#e2e8f0'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>money(c.parsed)}}},cutout:'75%'}});
+}
+
+function renderGroupCards(){
+  const container=document.getElementById('budgetGroups');
+  container.innerHTML=GROUPS.map(g=>{
+    const spent=getMonthSpent(g.name);
+    const budget=groupBudgets[g.name]||0;
+    const pct=budget>0?Math.min((spent/budget)*100,100):0;
+    const color=pct>=100?'danger':pct>=80?'warning':'success';
+    return `<div class="budget-group-card">
+      <div class="grp-header"><span class="grp-icon">${g.icon}</span><div><div class="grp-name">${g.name}</div><div class="grp-spent">Spent: ${money(spent)} this month</div></div></div>
+      ${budget>0?`<div class="progress-track" style="margin-bottom:6px;"><div class="progress-fill ${color}" style="width:${pct}%"></div></div><div class="text-muted" style="font-size:0.78rem;">${pct.toFixed(0)}% used · ${money(budget-spent)} left</div>`:'<div class="text-muted" style="font-size:0.78rem;">No budget set</div>'}
+      <div class="grp-input-row"><span class="rupee-prefix">₹</span><input type="number" class="form-control" id="grp_${g.name}" value="${budget||''}" placeholder="Set budget…" min="0" style="flex:1;"></div>
+    </div>`;
+  }).join('');
+}
+
+function renderBudgetChart(){
+  const labels=GROUPS.map(g=>g.name);
+  const spent=GROUPS.map(g=>getMonthSpent(g.name));
+  const budgets=GROUPS.map(g=>groupBudgets[g.name]||0);
+  const ctx=document.getElementById('budgetChart').getContext('2d');
+  if(budgetChartI) budgetChartI.destroy();
+  budgetChartI=new Chart(ctx,{type:'bar',data:{labels,datasets:[{label:'Budget',data:budgets,backgroundColor:'rgba(99,102,241,0.3)',borderColor:'#6366f1',borderWidth:1,borderRadius:4},{label:'Spent',data:spent,backgroundColor:'rgba(239,68,68,0.6)',borderColor:'#ef4444',borderWidth:1,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#64748b',font:{size:11}}}},scales:{x:{ticks:{color:'#64748b',font:{size:11}}},y:{beginAtZero:true,ticks:{color:'#64748b',font:{size:11},callback:v=>'₹'+Number(v).toLocaleString('en-IN')}}}}});
+}
+
+document.getElementById('monthlyBudgetInput').addEventListener('input', updateMonthlyProgress);
+
+document.getElementById('saveBudgetsBtn').addEventListener('click', async()=>{
+  const btn=document.getElementById('saveBudgetsBtn'); btn.disabled=true; btn.textContent='Saving…';
+  try{
+    const monthlyAmt=parseFloat(document.getElementById('monthlyBudgetInput').value)||0;
+    await API_CLIENT.put('/budget',{amount:monthlyAmt});
+    const budgets={};
+    GROUPS.forEach(g=>{ const v=parseFloat(document.getElementById('grp_'+g.name).value)||0; budgets[g.name]=v; });
+    await API_CLIENT.put('/group-budgets',{budgets});
+    groupBudgets=budgets; monthlyBudget=monthlyAmt;
+    showToast('Budgets saved!','success');
+    renderGroupCards(); updateMonthlyProgress(); renderBudgetChart();
+  }catch(e){showToast(e.message,'error');}
+  finally{btn.disabled=false;btn.textContent='💾 Save All Budgets';}
+});
+
+init();
+</script>
+</body>
+</html>

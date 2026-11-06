@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Expenses — EduFinance</title>
+<meta name="description" content="Track and manage all your student expenses with category filters and charts.">
+<link rel="stylesheet" href="css/app.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+.charts-row{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px;}
+@media(max-width:680px){.charts-row{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div id="appNav"></div>
+<header class="topbar">
+  <a class="topbar-brand" href="dashboard.html"><div class="topbar-logo">🎓</div><span class="topbar-title">EduFinance</span></a>
+  <div class="topbar-right">
+    <span class="topbar-page-title">Expenses</span>
+    <button class="theme-toggle-btn" aria-label="Toggle theme">🌙</button>
+    <button id="navOpenBtn" class="nav-open-btn" aria-label="Open menu">☰</button>
+  </div>
+</header>
+
+<main class="page-wrap">
+  <div class="page-header">
+    <div class="page-header-left"><h1>💸 Expenses</h1><p>Track every rupee you spend.</p></div>
+    <button class="btn btn-primary" id="addExpenseBtn">+ Add Expense</button>
+  </div>
+
+  <!-- Stat cards -->
+  <div class="stat-cards">
+    <div class="stat-card"><div class="stat-label">Total This Month</div><div class="stat-icon">💸</div><div class="stat-value" id="sTotal">₹0</div></div>
+    <div class="stat-card warning"><div class="stat-label">No. of Expenses</div><div class="stat-icon">🔢</div><div class="stat-value" id="sCount">0</div></div>
+    <div class="stat-card danger"><div class="stat-label">Highest Expense</div><div class="stat-icon">📈</div><div class="stat-value" id="sMax">₹0</div></div>
+    <div class="stat-card info"><div class="stat-label">Daily Average</div><div class="stat-icon">📅</div><div class="stat-value" id="sAvg">₹0</div></div>
+  </div>
+
+  <!-- Filters -->
+  <div class="card mb-24">
+    <div class="filter-bar" style="margin-bottom:0;">
+      <div class="form-group"><label class="form-label">Month</label><input id="monthFilter" type="month" class="form-control" style="width:160px;"></div>
+      <div class="form-group"><label class="form-label">Group</label>
+        <select id="groupFilter" class="form-control" style="width:150px;">
+          <option value="">All Groups</option>
+          <option>Food</option><option>Shopping</option><option>College</option>
+          <option>Transport</option><option>Living</option><option>Bills</option>
+          <option>Fun</option><option>Health</option><option>Other</option>
+        </select>
+      </div>
+      <div class="form-group" style="flex:1;"><label class="form-label">Search</label>
+        <div class="search-input-wrap"><span class="search-icon">🔍</span><input id="searchFilter" type="search" class="form-control" placeholder="Search expenses…"></div>
+      </div>
+      <div class="form-group"><label class="form-label">&nbsp;</label><button id="clearFilters" class="btn btn-secondary">Clear</button></div>
+    </div>
+  </div>
+
+  <!-- Expenses table -->
+  <div class="card">
+    <div class="table-wrap">
+      <table class="table" id="expensesTable">
+        <thead><tr>
+          <th>Category</th><th>Description</th><th>Date</th><th style="text-align:right;">Amount</th><th>Group</th><th>Actions</th>
+        </tr></thead>
+        <tbody id="expensesTbody"><tr><td colspan="6"><div class="loading-state"><div class="spinner"></div><span>Loading…</span></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts-row">
+    <div class="card"><div class="section-title">📊 Spending by Group</div><div class="chart-wrap"><canvas id="groupChart"></canvas></div></div>
+    <div class="card"><div class="section-title">📅 Daily Spending</div><div class="chart-wrap"><canvas id="dailyChart"></canvas></div></div>
+  </div>
+</main>
+
+<!-- Add/Edit Expense Modal -->
+<div id="expModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="expModalTitle">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="expModalTitle">Add Expense</span>
+      <button class="modal-close" id="expModalClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="expForm" novalidate>
+        <input type="hidden" id="expId">
+        <div class="form-grid form-grid-2" style="gap:14px;">
+          <div class="form-group" style="grid-column:1/-1;">
+            <label class="form-label" for="expTitle">Description *</label>
+            <input id="expTitle" type="text" class="form-control" placeholder="e.g. Canteen lunch" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="expAmount">Amount (₹) *</label>
+            <input id="expAmount" type="number" class="form-control" placeholder="0.00" min="0.01" step="0.01" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="expDate">Date *</label>
+            <input id="expDate" type="date" class="form-control" required>
+          </div>
+          <div class="form-group" style="grid-column:1/-1;">
+            <label class="form-label" for="expCategory">Category *</label>
+            <select id="expCategory" class="form-control" required><option value="">Select category…</option></select>
+          </div>
+        </div>
+        <div id="expFormErr" class="auth-message error mt-8" hidden></div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="expCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="expSaveBtn">Save Expense</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Modal -->
+<div id="confirmModal" class="modal-overlay" role="dialog" aria-modal="true">
+  <div class="modal">
+    <div class="modal-body" style="text-align:center;padding:32px 24px;">
+      <div style="font-size:3rem;margin-bottom:16px;">🗑️</div>
+      <div id="confirmTitle" style="font-size:1.1rem;font-weight:700;margin-bottom:8px;"></div>
+      <div id="confirmBody" style="color:var(--muted);font-size:0.95rem;"></div>
+    </div>
+    <div class="modal-footer">
+      <button id="confirmNo" class="btn btn-secondary">Cancel</button>
+      <button id="confirmYes" class="btn btn-danger">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/common.js"></script>
+<script src="js/nav.js"></script>
+<script>
+initTheme();
+let allExpenses=[], categories=[], groupChartI=null, dailyChartI=null;
+
+async function init(){
+  const user = await requireAuth();
+  buildNav('expenses', user);
+  const now = new Date();
+  document.getElementById('monthFilter').value = now.toISOString().slice(0,7);
+  await loadCategories();
+  await loadExpenses();
+}
+
+async function loadCategories(){
+  categories = await API_CLIENT.get('/categories');
+  ['expCategory'].forEach(id=>{
+    const sel = document.getElementById(id);
+    sel.innerHTML='<option value="">Select category…</option>';
+    const groups={};
+    categories.forEach(c=>{if(!groups[c.group])groups[c.group]=[];groups[c.group].push(c);});
+    Object.keys(groups).sort().forEach(g=>{
+      const og=document.createElement('optgroup'); og.label=g;
+      groups[g].forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.icon+' '+c.name;og.appendChild(o);});
+      sel.appendChild(og);
+    });
+  });
+}
+
+async function loadExpenses(){
+  const month = document.getElementById('monthFilter').value;
+  const url = month ? '/expenses?month='+month : '/expenses';
+  try {
+    allExpenses = await API_CLIENT.get(url);
+    renderTable();
+    renderStats();
+    renderCharts();
+  } catch(e){ showToast(e.message,'error'); }
+}
+
+function getFiltered(){
+  const grp = document.getElementById('groupFilter').value;
+  const q   = document.getElementById('searchFilter').value.toLowerCase();
+  return allExpenses.filter(e=>
+    (!grp||e.group===grp) &&
+    (!q||e.title.toLowerCase().includes(q)||e.category.toLowerCase().includes(q))
+  );
+}
+
+function renderTable(){
+  const data = getFiltered();
+  const tbody = document.getElementById('expensesTbody');
+  if(!data.length){
+    tbody.innerHTML=`<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">💸</div><h3>No expenses found</h3><p>Try adjusting your filters or add a new expense.</p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = data.map(e=>`<tr>
+    <td><span style="font-size:1.1rem;">${e.icon||'💳'}</span> ${escapeHtml(e.category)}</td>
+    <td class="fw-semi">${escapeHtml(e.title)}</td>
+    <td class="text-muted">${formatDate(e.date)}</td>
+    <td style="text-align:right;" class="fw-bold">${money(e.amount)}</td>
+    <td><span class="badge badge-muted">${e.group}</span></td>
+    <td>
+      <button class="btn btn-sm btn-secondary" onclick="openEdit(${e.id})">✏️</button>
+      <button class="btn btn-sm btn-danger" style="margin-left:4px;" onclick="deleteExp(${e.id},'${escapeHtml(e.title)}')">🗑️</button>
+    </td>
+  </tr>`).join('');
+}
+
+function renderStats(){
+  const data = getFiltered();
+  const total = data.reduce((s,e)=>s+e.amount,0);
+  const max = data.length ? Math.max(...data.map(e=>e.amount)) : 0;
+  const days = new Set(data.map(e=>e.date)).size || 1;
+  document.getElementById('sTotal').textContent = money(total);
+  document.getElementById('sCount').textContent = data.length;
+  document.getElementById('sMax').textContent   = money(max);
+  document.getElementById('sAvg').textContent   = money(total/Math.max(days,1));
+}
+
+function renderCharts(){
+  const data = getFiltered();
+  // Group donut
+  const grpTotals={};
+  data.forEach(e=>{ grpTotals[e.group]=(grpTotals[e.group]||0)+e.amount; });
+  const grpLabels=Object.keys(grpTotals), grpVals=grpLabels.map(l=>grpTotals[l]);
+  const colors=['#6366f1','#8b5cf6','#06b6d4','#22c55e','#f59e0b','#ef4444','#ec4899','#14b8a6','#f97316'];
+  const ctx1=document.getElementById('groupChart').getContext('2d');
+  if(groupChartI) groupChartI.destroy();
+  groupChartI=new Chart(ctx1,{type:'doughnut',data:{labels:grpLabels,datasets:[{data:grpVals,backgroundColor:colors.slice(0,grpLabels.length),borderWidth:2,borderColor:'var(--surface)'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{padding:8,font:{size:11},color:'#64748b'}}}}});
+
+  // Daily bar chart
+  const dayMap={};
+  data.forEach(e=>{ dayMap[e.date]=(dayMap[e.date]||0)+e.amount; });
+  const dayLabels=Object.keys(dayMap).sort();
+  const dayVals=dayLabels.map(d=>dayMap[d]);
+  const ctx2=document.getElementById('dailyChart').getContext('2d');
+  if(dailyChartI) dailyChartI.destroy();
+  dailyChartI=new Chart(ctx2,{type:'bar',data:{labels:dayLabels.map(d=>d.slice(5)),datasets:[{label:'Expenses',data:dayVals,backgroundColor:'rgba(99,102,241,0.7)',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#64748b',font:{size:10}}},y:{ticks:{color:'#64748b',font:{size:10}},beginAtZero:true}}}});
+}
+
+// Modal
+function openAdd(){ document.getElementById('expModalTitle').textContent='Add Expense'; document.getElementById('expId').value=''; document.getElementById('expForm').reset(); document.getElementById('expDate').value=todayISO(); document.getElementById('expFormErr').hidden=true; document.getElementById('expModal').classList.add('active'); }
+function openEdit(id){ const e=allExpenses.find(x=>x.id===id); if(!e) return; document.getElementById('expModalTitle').textContent='Edit Expense'; document.getElementById('expId').value=id; document.getElementById('expTitle').value=e.title; document.getElementById('expAmount').value=e.amount; document.getElementById('expDate').value=e.date; document.getElementById('expCategory').value=e.category_id; document.getElementById('expFormErr').hidden=true; document.getElementById('expModal').classList.add('active'); }
+function closeModal(){ document.getElementById('expModal').classList.remove('active'); }
+document.getElementById('addExpenseBtn').addEventListener('click',openAdd);
+document.getElementById('expModalClose').addEventListener('click',closeModal);
+document.getElementById('expCancelBtn').addEventListener('click',closeModal);
+
+document.getElementById('expSaveBtn').addEventListener('click',async()=>{
+  const id=document.getElementById('expId').value;
+  const title=document.getElementById('expTitle').value.trim();
+  const amount=parseFloat(document.getElementById('expAmount').value);
+  const date=document.getElementById('expDate').value;
+  const category_id=parseInt(document.getElementById('expCategory').value);
+  const errEl=document.getElementById('expFormErr');
+  if(!title||!amount||!date||!category_id){ errEl.textContent='Please fill all required fields.'; errEl.hidden=false; return; }
+  const btn=document.getElementById('expSaveBtn'); btn.disabled=true; btn.textContent='Saving…';
+  try {
+    if(id) await API_CLIENT.put('/expenses/'+id,{title,amount,category_id,date});
+    else    await API_CLIENT.post('/expenses',{title,amount,category_id,date});
+    showToast(id?'Expense updated!':'Expense added!','success');
+    closeModal(); loadExpenses();
+  } catch(e){ errEl.textContent=e.message; errEl.hidden=false; }
+  finally{ btn.disabled=false; btn.textContent='Save Expense'; }
+});
+
+async function deleteExp(id, name){
+  const ok = await confirm2('Delete expense "'+name+'"? This cannot be undone.','Delete Expense');
+  if(!ok) return;
+  try { await API_CLIENT.del('/expenses/'+id); showToast('Deleted.','success'); loadExpenses(); }
+  catch(e){ showToast(e.message,'error'); }
+}
+
+['monthFilter','groupFilter','searchFilter'].forEach(id=>
+  document.getElementById(id).addEventListener('change', ()=>{ renderTable(); renderStats(); renderCharts(); })
+);
+document.getElementById('searchFilter').addEventListener('input', ()=>{ renderTable(); renderStats(); renderCharts(); });
+document.getElementById('clearFilters').addEventListener('click',()=>{
+  document.getElementById('groupFilter').value=''; document.getElementById('searchFilter').value='';
+  renderTable(); renderStats(); renderCharts();
+});
+document.getElementById('monthFilter').addEventListener('change', loadExpenses);
+
+init();
+</script>
+</body>
+</html>
